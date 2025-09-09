@@ -1,0 +1,49 @@
+name: cheese_for_everyone
+description: Chess game with voice and AI
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_chess_board: ^1.0.0
+  chess: ^1.0.0
+  flutter_tts: ^3.6.3
+  speech_to_text: ^5.9.0
+  web_socket_channel: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: truedependencies:
+  flutter:
+    sdk: flutter
+  flutter_chess_board: ^1.0.2
+  chess: ^1.0.0
+  speech_to_text: ^6.6.0
+  flutter_tts: ^3.8.0
+  web_socket_channel: ^3.0.0
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  google_sign_in: ^6.1.6
+  flutter_facebook_auth: ^6.1.1
+  cloud_firestore: ^5.4.4
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_chess_board: ^1.0.2
+  chess: ^1.0.0
+  speech_to_text: ^6.6.0
+  flutter_tts: ^3.8.0
+  web_socket_channel: ^3.0.0
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  google_sign_in: ^6.1.6
+  flutter_facebook_auth: ^6.1.1
+  cloud_firestore: ^5.4.4
