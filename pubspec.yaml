@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_chess_board: ^1.0.2
-  chess: ^1.0.0
+  chess: ^0.8.1
   speech_to_text: ^6.6.0
   flutter_tts: ^3.8.0
   web_socket_channel: ^3.0.0
