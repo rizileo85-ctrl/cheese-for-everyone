@@ -13,7 +13,7 @@ dependencies:
 
   # Chess packages
   chess: ^1.2.1
-  flutter_chess_board: ^0.4.0
+  flutter_chess_board: ^1.0.1
 
   # Speech and TTS
   speech_to_text: ^7.3.0
