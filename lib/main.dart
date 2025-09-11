@@ -4,6 +4,7 @@ import 'package:chess/chess.dart' as chess;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:web_socket_channel/io.dart';
+import 'dart:convert';
 
 void main() {
   runApp(const CheeseApp());
@@ -69,8 +70,10 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(playerName.isEmpty ? "Guest" : playerName,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(
+                playerName.isEmpty ? "Guest" : playerName,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => Navigator.push(
@@ -136,22 +139,40 @@ class _GamePageState extends State<GamePage> {
     super.initState();
     if (widget.mode == "ai" || widget.mode == "assistant") {
       channel = IOWebSocketChannel.connect("ws://localhost:8080");
+
+      /// ✅ Listen for AI/assistant moves from server
+      channel!.stream.listen((data) {
+        try {
+          final decoded = jsonDecode(data);
+          if (decoded["type"] == "ai_move" || decoded["type"] == "assistant_move") {
+            final move = decoded["move"];
+            if (move != null) {
+              game.move(move);
+              boardController.loadFen(game.fen);
+              tts.speak("AI played: $move");
+              setState(() {});
+            }
+          }
+        } catch (e) {
+          debugPrint("Error parsing AI response: $e");
+        }
+      });
     }
   }
 
   void sendMove(String move) {
     if (channel != null) {
-      final fen = game.fen; // ✅ FIXED: getter used instead of function call
       if (widget.mode == "ai") {
-        channel!.sink.add('{"type":"ai_move","fen":"$fen","level":"beginner"}');
+        channel!.sink.add(
+            '{"type":"ai_move","fen":"${game.fen}","level":"beginner"}');
       } else if (widget.mode == "assistant") {
-        channel!.sink.add('{"type":"assistant_move","fen":"$fen"}');
+        channel!.sink.add('{"type":"assistant_move","fen":"${game.fen}"}');
       }
     }
   }
 
   void onMove() {
-    final last = game.history.isNotEmpty ? game.history.last : "";
+    final last = game.history.isNotEmpty ? game.history.last.toString() : "";
     if (last.isNotEmpty) {
       tts.speak("Move played: $last");
       if (widget.mode == "ai" || widget.mode == "assistant") {
@@ -181,7 +202,8 @@ class _GamePageState extends State<GamePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               ElevatedButton(
-                onPressed: () => tts.speak("Explain Rook: moves straight lines horizontally or vertically"),
+                onPressed: () => tts.speak(
+                    "Explain Rook: moves straight lines horizontally or vertically"),
                 child: const Text("Explain Rook"),
               ),
               ElevatedButton(
