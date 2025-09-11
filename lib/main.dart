@@ -150,11 +150,11 @@ class _GamePageState extends State<GamePage> {
   }
 
   void onMove() {
-    final last = game.history.isNotEmpty ? game.history.last : "";
+    final last = game.history.isNotEmpty ? game.history.last.toString() : "";
     if (last.isNotEmpty) {
       tts.speak("Move played: $last");
       if (widget.mode == "ai" || widget.mode == "assistant") {
-        sendMove(last);
+        sendMove(last); // ab ye String hai, error nahi ayega
       }
     }
   }
@@ -171,7 +171,6 @@ class _GamePageState extends State<GamePage> {
               boardColor: BoardColor.brown,
               boardOrientation: PlayerColor.white,
               onMove: () {
-                // Instead of boardController.getPGN(), use game.load() based on boardController.getFen()
                 game.load(boardController.getFen());
                 onMove();
               },
