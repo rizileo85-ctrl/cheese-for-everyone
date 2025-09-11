@@ -150,10 +150,12 @@ class _GamePageState extends State<GamePage> {
   }
 
   void onMove() {
-    final last = game.history.last;
-    tts.speak("Move played: $last");
-    if (widget.mode == "ai" || widget.mode == "assistant") {
-      sendMove(last);
+    final last = game.history.isNotEmpty ? game.history.last : "";
+    if (last.isNotEmpty) {
+      tts.speak("Move played: $last");
+      if (widget.mode == "ai" || widget.mode == "assistant") {
+        sendMove(last);
+      }
     }
   }
 
@@ -169,7 +171,8 @@ class _GamePageState extends State<GamePage> {
               boardColor: BoardColor.brown,
               boardOrientation: PlayerColor.white,
               onMove: () {
-                game.load_pgn(boardController.getPGN());
+                // Instead of boardController.getPGN(), use game.load() based on boardController.getFen()
+                game.load(boardController.getFen());
                 onMove();
               },
             ),
