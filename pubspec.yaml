@@ -1,4 +1,4 @@
-name: cheese_for_everyone
+name: chess_for_everyone
 description: A chess app with AI, assistant, and local modes
 publish_to: 'none'
 
@@ -11,11 +11,21 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Existing packages
   flutter_chess_board: ^1.0.1
   speech_to_text: ^7.3.0
   flutter_tts: ^3.5.2
   web_socket_channel: ^2.3.0
   cupertino_icons: ^1.0.5
+
+  # Firebase & Authentication packages
+  firebase_core: ^2.23.0
+  firebase_auth: ^4.11.0
+  cloud_firestore: ^5.13.0
+  firebase_database: ^11.0.0
+  google_sign_in: ^6.3.0
+  flutter_facebook_auth: ^6.2.0
+  chess: ^1.1.0
 
 dev_dependencies:
   flutter_test:
