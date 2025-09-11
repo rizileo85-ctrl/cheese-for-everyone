@@ -141,20 +141,21 @@ class _GamePageState extends State<GamePage> {
 
   void sendMove(String move) {
     if (channel != null) {
+      final fen = game.fen; // ✅ FIXED: getter used instead of function call
       if (widget.mode == "ai") {
-        channel!.sink.add('{"type":"ai_move","fen":"${game.fen()}","level":"beginner"}');
+        channel!.sink.add('{"type":"ai_move","fen":"$fen","level":"beginner"}');
       } else if (widget.mode == "assistant") {
-        channel!.sink.add('{"type":"assistant_move","fen":"${game.fen()}"}');
+        channel!.sink.add('{"type":"assistant_move","fen":"$fen"}');
       }
     }
   }
 
   void onMove() {
-    final last = game.history.isNotEmpty ? game.history.last.toString() : "";
+    final last = game.history.isNotEmpty ? game.history.last : "";
     if (last.isNotEmpty) {
       tts.speak("Move played: $last");
       if (widget.mode == "ai" || widget.mode == "assistant") {
-        sendMove(last); // ab ye String hai, error nahi ayega
+        sendMove(last);
       }
     }
   }
