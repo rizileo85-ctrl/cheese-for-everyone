@@ -1,10 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import 'package:chess/chess.dart' as chess;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:web_socket_channel/io.dart';
 
 void main() {
   runApp(const CheeseApp());
@@ -70,10 +68,8 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                playerName.isEmpty ? "Guest" : playerName,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
+              Text(playerName.isEmpty ? "Guest" : playerName,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => Navigator.push(
@@ -132,94 +128,69 @@ class _GamePageState extends State<GamePage> {
   final FlutterTts tts = FlutterTts();
   final stt.SpeechToText speech = stt.SpeechToText();
   final chess.Chess game = chess.Chess();
-  IOWebSocketChannel? channel;
+
+  bool listening = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.mode == "ai" || widget.mode == "assistant") {
-      // keep websocket logic for future; for local testing you can ignore
-      channel = IOWebSocketChannel.connect("ws://localhost:8080");
-
-      channel!.stream.listen((data) {
-        try {
-          final decoded = jsonDecode(data);
-          if (decoded["type"] == "ai_move" || decoded["type"] == "assistant_move") {
-            final move = decoded["move"];
-            if (move != null) {
-              // move is expected in long algebraic form acceptable by chess package
-              game.move(move);
-              boardController.loadFen(game.fen);
-              tts.speak("AI played: $move");
-              setState(() {});
-            }
-          }
-        } catch (e) {
-          debugPrint("Error parsing AI response: $e");
-        }
-      });
-    }
-  }
-
-  void sendMove(String move) {
-    if (channel != null) {
-      final fen = game.fen; // getter
-      if (widget.mode == "ai") {
-        channel!.sink.add('{"type":"ai_move","fen":"$fen","level":"beginner"}');
-      } else if (widget.mode == "assistant") {
-        channel!.sink.add('{"type":"assistant_move","fen":"$fen"}');
-      }
-    }
-  }
-
-  // Undo last move
-  void undoMove() {
-    try {
-      final res = game.undo();
-      // res could be null if no moves
-      boardController.loadFen(game.fen);
-      setState(() {});
-      if (res != null) tts.speak("Undid move");
-    } catch (e) {
-      debugPrint("Undo error: $e");
-    }
-  }
-
-  // Restart the game
-  void restartGame() {
-    game.reset();
-    boardController.loadFen(game.fen);
-    setState(() {});
-    tts.speak("Game restarted");
   }
 
   void onMove() {
-    // update local game from board controller FEN, then refresh UI & history
-    try {
-      final fen = boardController.getFen();
-      game.load(fen);
-      final last = game.history.isNotEmpty ? game.history.last.toString() : "";
-      setState(() {}); // refresh UI (history list etc)
-      if (last.isNotEmpty) {
-        tts.speak("Move played: $last");
-        if (widget.mode == "ai" || widget.mode == "assistant") {
-          sendMove(last);
-        }
-      }
-    } catch (e) {
-      debugPrint("onMove error: $e");
+    final fen = boardController.getFen();
+    game.load(fen);
+    setState(() {});
+
+    if (game.history.isNotEmpty) {
+      final last = game.history.last.toString();
+      tts.speak("Move played: $last");
     }
+  }
+
+  Future<void> startListening() async {
+    final available = await speech.initialize();
+    if (!available) {
+      debugPrint("Speech not available");
+      return;
+    }
+    setState(() => listening = true);
+
+    speech.listen(
+      onResult: (result) {
+        final spoken = result.recognizedWords.toLowerCase();
+        if (spoken.contains("to")) {
+          final parts = spoken.split("to");
+          if (parts.length == 2) {
+            final from = parts[0].trim();
+            final to = parts[1].trim();
+            final move = {"from": from, "to": to};
+            final applied = game.move(move);
+            if (applied != null) {
+              boardController.loadFen(game.fen);
+              setState(() {});
+              tts.speak("You played $from to $to");
+            } else {
+              tts.speak("Invalid move");
+            }
+          }
+        }
+      },
+    );
+  }
+
+  void stopListening() {
+    speech.stop();
+    setState(() => listening = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    // build a layout: board on top, controls and move list below
     final moves = game.history.map((m) => m.toString()).toList();
+
     return Scaffold(
       appBar: AppBar(title: Text("Mode: ${widget.mode}")),
       body: Column(
         children: [
-          // Chess board (fixed height for better layout on mobile)
           SizedBox(
             height: 360,
             child: ChessBoard(
@@ -229,80 +200,44 @@ class _GamePageState extends State<GamePage> {
               onMove: onMove,
             ),
           ),
-
-          // Controls: Undo / Restart
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: undoMove,
-                  icon: const Icon(Icons.undo),
-                  label: const Text("Undo"),
-                ),
-                ElevatedButton.icon(
-                  onPressed: restartGame,
-                  icon: const Icon(Icons.replay),
-                  label: const Text("Restart"),
-                ),
-                ElevatedButton.icon(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              ElevatedButton(
                   onPressed: () {
-                    // quick speak current FEN or moves
-                    final last = game.history.isNotEmpty ? game.history.last.toString() : "No moves yet";
-                    tts.speak(last);
+                    game.undo();
+                    boardController.loadFen(game.fen);
+                    setState(() {});
                   },
-                  icon: const Icon(Icons.volume_up),
-                  label: const Text("Speak Last"),
+                  child: const Text("Undo")),
+              ElevatedButton(
+                  onPressed: () {
+                    game.reset();
+                    boardController.loadFen(game.fen);
+                    setState(() {});
+                  },
+                  child: const Text("Restart")),
+              IconButton(
+                icon: Icon(
+                  listening ? Icons.mic : Icons.mic_none,
+                  color: listening ? Colors.red : Colors.black,
                 ),
-              ],
-            ),
+                onPressed: listening ? stopListening : startListening,
+              )
+            ],
           ),
-
-          const Divider(),
-
-          // Move history list
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text("Move History", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Expanded(
-                    child: moves.isEmpty
-                        ? const Center(child: Text("No moves yet"))
-                        : ListView.separated(
-                            itemCount: moves.length,
-                            separatorBuilder: (_, __) => const Divider(),
-                            itemBuilder: (context, index) {
-                              final moveText = moves[index];
-                              return ListTile(
-                                dense: true,
-                                leading: Text("${index + 1}."),
-                                title: Text(moveText),
-                                onTap: () {
-                                  // tap a move to speak it
-                                  tts.speak(moveText);
-                                },
-                              );
-                            },
-                          ),
-                  ),
-                ],
+            child: ListView.builder(
+              itemCount: moves.length,
+              itemBuilder: (_, i) => ListTile(
+                title: Text(moves[i]),
+                onTap: () => tts.speak(moves[i]),
               ),
             ),
-          ),
+          )
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    channel?.sink.close();
-    super.dispose();
   }
 }
 
