@@ -5,7 +5,7 @@ import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -17,28 +17,37 @@ void main() async {
   runApp(const CheeseApp());
 }
 
-class CheeseApp extends StatelessWidget {
+// ================= APP =================
+class CheeseApp extends StatefulWidget {
   const CheeseApp({super.key});
+  @override
+  State<CheeseApp> createState() => _CheeseAppState();
+}
+
+class _CheeseAppState extends State<CheeseApp> {
+  bool isDark = false;
+  void toggleTheme() => setState(() => isDark = !isDark);
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Cheese for Everyone',
-      theme: ThemeData(primarySwatch: Colors.indigo),
-      home: const AuthWrapper(),
+      theme: isDark ? ThemeData.dark() : ThemeData.light(),
+      home: AuthWrapper(toggleTheme: toggleTheme),
     );
   }
 }
 
 // ================= AUTH WRAPPER =================
 class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
+  final VoidCallback toggleTheme;
+  const AuthWrapper({super.key, required this.toggleTheme});
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.active) {
-          if (snapshot.hasData) return const HomePage();
+          if (snapshot.hasData) return HomePage(toggleTheme: toggleTheme);
           return const LoginPage();
         }
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -52,25 +61,24 @@ class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
   Future<void> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+    final googleUser = await GoogleSignIn().signIn();
     if (googleUser == null) return;
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
+    final googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken, idToken: googleAuth.idToken);
     await FirebaseAuth.instance.signInWithCredential(credential);
   }
 
   Future<void> signInWithFacebook() async {
-    final LoginResult result = await FacebookAuth.instance.login();
+    final result = await FacebookAuth.instance.login();
     if (result.status == LoginStatus.success) {
-      final credential = FacebookAuthProvider.credential(result.accessToken!.token);
+      final credential =
+          FacebookAuthProvider.credential(result.accessToken!.token);
       await FirebaseAuth.instance.signInWithCredential(credential);
     }
   }
 
   Future<void> signInWithPhone(BuildContext context) async {
-    // Placeholder for phone OTP login
     const phoneNumber = "+923001234567";
     await FirebaseAuth.instance.verifyPhoneNumber(
       phoneNumber: phoneNumber,
@@ -90,8 +98,10 @@ class LoginPage extends StatelessWidget {
       body: Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ElevatedButton(onPressed: signInWithGoogle, child: const Text("Google")),
-          ElevatedButton(onPressed: signInWithFacebook, child: const Text("Facebook")),
-          ElevatedButton(onPressed: () => signInWithPhone(context), child: const Text("Phone OTP")),
+          ElevatedButton(
+              onPressed: signInWithFacebook, child: const Text("Facebook")),
+          ElevatedButton(
+              onPressed: () => signInWithPhone(context), child: const Text("Phone OTP")),
         ]),
       ),
     );
@@ -99,58 +109,44 @@ class LoginPage extends StatelessWidget {
 }
 
 // ================= HOME PAGE =================
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  User? user = FirebaseAuth.instance.currentUser;
-
-  void _logout() async {
-    await FirebaseAuth.instance.signOut();
-  }
-
-  void _chooseAIDifficulty() async {
-    String? level = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Select AI Difficulty"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ElevatedButton(onPressed: () => Navigator.pop(context, "Beginner"), child: const Text("Beginner")),
-            ElevatedButton(onPressed: () => Navigator.pop(context, "Intermediate"), child: const Text("Intermediate")),
-            ElevatedButton(onPressed: () => Navigator.pop(context, "Hard"), child: const Text("Hard")),
-          ],
-        ),
-      ),
-    );
-    if (level != null) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => GamePage(mode: "ai", aiLevel: level)));
-    }
-  }
-
-  void _challengeChatGPT() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => GamePage(mode: "chatgpt", aiLevel: "Expert")));
-  }
-
-  void _playOnline() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const OnlineLobbyPage()));
-  }
-
-  void _playLocal() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const GamePage(mode: "local")));
-  }
-
+class HomePage extends StatelessWidget {
+  final VoidCallback toggleTheme;
+  const HomePage({super.key, required this.toggleTheme});
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
     final displayName = user?.displayName ?? "Guest";
+
+    void logout() async => FirebaseAuth.instance.signOut();
+    void playLocal() => Navigator.push(context, MaterialPageRoute(builder: (_) => const GamePage(mode: "local")));
+    void chooseAI() async {
+      String? level = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Select AI Difficulty"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton(onPressed: () => Navigator.pop(context, "Beginner"), child: const Text("Beginner")),
+              ElevatedButton(onPressed: () => Navigator.pop(context, "Intermediate"), child: const Text("Intermediate")),
+              ElevatedButton(onPressed: () => Navigator.pop(context, "Hard"), child: const Text("Hard")),
+            ],
+          ),
+        ),
+      );
+      if (level != null) Navigator.push(context, MaterialPageRoute(builder: (_) => GamePage(mode: "ai", aiLevel: level)));
+    }
+
+    void challengeChatGPT() => Navigator.push(context, MaterialPageRoute(builder: (_) => const GamePage(mode: "chatgpt", aiLevel: "Expert")));
+    void playOnline() => Navigator.push(context, MaterialPageRoute(builder: (_) => const OnlineLobbyPage()));
+
     return Scaffold(
       appBar: AppBar(
-        title: Text("Cheese for Everyone"),
-        actions: [IconButton(onPressed: _logout, icon: const Icon(Icons.logout))],
+        title: const Text("Cheese for Everyone"),
+        actions: [
+          IconButton(onPressed: toggleTheme, icon: const Icon(Icons.brightness_6)),
+          IconButton(onPressed: logout, icon: const Icon(Icons.logout))
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -163,10 +159,10 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 8),
             Text(displayName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _playLocal, child: const Text("Play Local Two-Player")),
-            ElevatedButton(onPressed: _chooseAIDifficulty, child: const Text("Play vs AI")),
-            ElevatedButton(onPressed: _challengeChatGPT, child: const Text("Challenge ChatGPT AI")),
-            ElevatedButton(onPressed: _playOnline, child: const Text("Online Multiplayer")),
+            ElevatedButton(onPressed: playLocal, child: const Text("Play Local 2-player")),
+            ElevatedButton(onPressed: chooseAI, child: const Text("Play vs AI")),
+            ElevatedButton(onPressed: challengeChatGPT, child: const Text("ChatGPT Expert")),
+            ElevatedButton(onPressed: playOnline, child: const Text("Online Multiplayer")),
           ]),
         ),
       ),
@@ -195,6 +191,9 @@ class _GamePageState extends State<GamePage> {
   final FlutterTts tts = FlutterTts();
   bool isListening = false;
 
+  // Firebase Realtime
+  final database = FirebaseDatabase.instance.ref();
+
   @override
   void initState() {
     super.initState();
@@ -207,19 +206,20 @@ class _GamePageState extends State<GamePage> {
       }
     }
     speech = stt.SpeechToText();
+
+    // Online mode listener
+    if (widget.mode == "online") {
+      listenOnlineMoves();
+    }
   }
 
   void handleMove(String from, String to) {
     final move = {'from': from, 'to': to};
     if (game.move(move) != null) {
-      setState(() {
-        moveHistory.add("${from}${to}");
-      });
+      setState(() => moveHistory.add("${from}${to}"));
       tts.speak("Move played: ${from}${to}");
       if (widget.mode == "ai" || widget.mode == "chatgpt") {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          makeAIMove();
-        });
+        Future.delayed(const Duration(milliseconds: 500), () => makeAIMove());
       }
       if (widget.mode == "online") {
         updateOnlineMove("${from}${to}");
@@ -299,13 +299,11 @@ class _GamePageState extends State<GamePage> {
 
   void startListening() async {
     bool available = await speech.initialize();
-    if (available) {
-      setState(() => isListening = true);
-      speech.listen(onResult: (result) {
-        String command = result.recognizedWords.toLowerCase();
-        parseSpeechCommand(command);
-      });
-    }
+    if (available) setState(() => isListening = true);
+    speech.listen(onResult: (result) {
+      String command = result.recognizedWords.toLowerCase();
+      parseSpeechCommand(command);
+    });
   }
 
   void stopListening() {
@@ -316,11 +314,7 @@ class _GamePageState extends State<GamePage> {
   void parseSpeechCommand(String command) {
     final regex = RegExp(r"([a-h][1-8])\s*(to)?\s*([a-h][1-8])");
     final match = regex.firstMatch(command);
-    if (match != null) {
-      final from = match.group(1)!;
-      final to = match.group(3)!;
-      handleMove(from, to);
-    }
+    if (match != null) handleMove(match.group(1)!, match.group(3)!);
   }
 
   void undoMove() {
@@ -343,9 +337,7 @@ class _GamePageState extends State<GamePage> {
   void checkGameOver() {
     if (game.game_over) {
       String msg = "Draw";
-      if (game.in_checkmate) {
-        msg = game.turn == chess.Color.WHITE ? "Black Wins" : "White Wins";
-      }
+      if (game.in_checkmate) msg = game.turn == chess.Color.WHITE ? "Black Wins" : "White Wins";
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -365,9 +357,22 @@ class _GamePageState extends State<GamePage> {
     }
   }
 
-  void updateOnlineMove(String move) async {
-    // Placeholder for online move update
-    // Here you will push move to Firebase Realtime Database
+  void updateOnlineMove(String move) {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    database.child("games").child(userId).push().set(move);
+  }
+
+  void listenOnlineMoves() {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    database.child("games").child(userId).onChildAdded.listen((event) {
+      String move = event.snapshot.value.toString();
+      if (!moveHistory.contains(move)) {
+        game.move(move);
+        setState(() => moveHistory.add("Online: $move"));
+        boardController.loadFen(game.fen);
+        checkGameOver();
+      }
+    });
   }
 
   @override
@@ -386,6 +391,9 @@ class _GamePageState extends State<GamePage> {
               setState(() {});
               if (widget.mode == "ai" || widget.mode == "chatgpt") {
                 Future.delayed(const Duration(milliseconds: 500), () => makeAIMove());
+              }
+              if (widget.mode == "online") {
+                // already handled via Firebase listener
               }
               checkGameOver();
             },
@@ -415,7 +423,7 @@ class _GamePageState extends State<GamePage> {
   }
 }
 
-// ================= ONLINE LOBBY PLACEHOLDER =================
+// ================= ONLINE LOBBY =================
 class OnlineLobbyPage extends StatelessWidget {
   const OnlineLobbyPage({super.key});
 
