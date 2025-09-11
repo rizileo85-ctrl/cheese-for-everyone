@@ -5,11 +5,15 @@ workflows:
     environment:
       flutter: stable
     scripts:
+      - name: Ensure Flutter project structure
+        script: |
+          echo "Running flutter create to generate missing android/ios files if needed"
+          flutter create .
       - name: Clean build cache
         script: flutter clean
       - name: Get dependencies
         script: flutter pub get
-      - name: Build APK
+      - name: Build APK (release)
         script: flutter build apk --release
     artifacts:
       - build/**/outputs/**/*.apk
