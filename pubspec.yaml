@@ -11,18 +11,17 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Chess logic and UI
-  chess: ^0.8.1
+  # Chess board (will auto-resolve compatible chess package)
   flutter_chess_board: ^1.0.1
 
-  # Speech recognition & TTS
+  # Speech and TTS
   speech_to_text: ^7.3.0
   flutter_tts: ^3.5.2
 
-  # WebSocket communication
+  # WebSocket
   web_socket_channel: ^2.3.0
 
-  # Icons & UI support
+  # Icons
   cupertino_icons: ^1.0.5
 
 dev_dependencies:
