@@ -1,10 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_chess_board/flutter_chess_board.dart';
 import 'package:chess/chess.dart' as chess;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:web_socket_channel/io.dart';
-import 'dart:convert';
 
 void main() {
   runApp(const CheeseApp());
@@ -138,15 +138,16 @@ class _GamePageState extends State<GamePage> {
   void initState() {
     super.initState();
     if (widget.mode == "ai" || widget.mode == "assistant") {
+      // keep websocket logic for future; for local testing you can ignore
       channel = IOWebSocketChannel.connect("ws://localhost:8080");
 
-      /// ✅ Listen for AI/assistant moves from server
       channel!.stream.listen((data) {
         try {
           final decoded = jsonDecode(data);
           if (decoded["type"] == "ai_move" || decoded["type"] == "assistant_move") {
             final move = decoded["move"];
             if (move != null) {
+              // move is expected in long algebraic form acceptable by chess package
               game.move(move);
               boardController.loadFen(game.fen);
               tts.speak("AI played: $move");
@@ -162,62 +163,136 @@ class _GamePageState extends State<GamePage> {
 
   void sendMove(String move) {
     if (channel != null) {
+      final fen = game.fen; // getter
       if (widget.mode == "ai") {
-        channel!.sink.add(
-            '{"type":"ai_move","fen":"${game.fen}","level":"beginner"}');
+        channel!.sink.add('{"type":"ai_move","fen":"$fen","level":"beginner"}');
       } else if (widget.mode == "assistant") {
-        channel!.sink.add('{"type":"assistant_move","fen":"${game.fen}"}');
+        channel!.sink.add('{"type":"assistant_move","fen":"$fen"}');
       }
     }
   }
 
+  // Undo last move
+  void undoMove() {
+    try {
+      final res = game.undo();
+      // res could be null if no moves
+      boardController.loadFen(game.fen);
+      setState(() {});
+      if (res != null) tts.speak("Undid move");
+    } catch (e) {
+      debugPrint("Undo error: $e");
+    }
+  }
+
+  // Restart the game
+  void restartGame() {
+    game.reset();
+    boardController.loadFen(game.fen);
+    setState(() {});
+    tts.speak("Game restarted");
+  }
+
   void onMove() {
-    final last = game.history.isNotEmpty ? game.history.last.toString() : "";
-    if (last.isNotEmpty) {
-      tts.speak("Move played: $last");
-      if (widget.mode == "ai" || widget.mode == "assistant") {
-        sendMove(last);
+    // update local game from board controller FEN, then refresh UI & history
+    try {
+      final fen = boardController.getFen();
+      game.load(fen);
+      final last = game.history.isNotEmpty ? game.history.last.toString() : "";
+      setState(() {}); // refresh UI (history list etc)
+      if (last.isNotEmpty) {
+        tts.speak("Move played: $last");
+        if (widget.mode == "ai" || widget.mode == "assistant") {
+          sendMove(last);
+        }
       }
+    } catch (e) {
+      debugPrint("onMove error: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // build a layout: board on top, controls and move list below
+    final moves = game.history.map((m) => m.toString()).toList();
     return Scaffold(
       appBar: AppBar(title: Text("Mode: ${widget.mode}")),
       body: Column(
         children: [
-          Expanded(
+          // Chess board (fixed height for better layout on mobile)
+          SizedBox(
+            height: 360,
             child: ChessBoard(
               controller: boardController,
               boardColor: BoardColor.brown,
               boardOrientation: PlayerColor.white,
-              onMove: () {
-                game.load(boardController.getFen());
-                onMove();
-              },
+              onMove: onMove,
             ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () => tts.speak(
-                    "Explain Rook: moves straight lines horizontally or vertically"),
-                child: const Text("Explain Rook"),
+
+          // Controls: Undo / Restart
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: undoMove,
+                  icon: const Icon(Icons.undo),
+                  label: const Text("Undo"),
+                ),
+                ElevatedButton.icon(
+                  onPressed: restartGame,
+                  icon: const Icon(Icons.replay),
+                  label: const Text("Restart"),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // quick speak current FEN or moves
+                    final last = game.history.isNotEmpty ? game.history.last.toString() : "No moves yet";
+                    tts.speak(last);
+                  },
+                  icon: const Icon(Icons.volume_up),
+                  label: const Text("Speak Last"),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(),
+
+          // Move history list
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text("Move History", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: moves.isEmpty
+                        ? const Center(child: Text("No moves yet"))
+                        : ListView.separated(
+                            itemCount: moves.length,
+                            separatorBuilder: (_, __) => const Divider(),
+                            itemBuilder: (context, index) {
+                              final moveText = moves[index];
+                              return ListTile(
+                                dense: true,
+                                leading: Text("${index + 1}."),
+                                title: Text(moveText),
+                                onTap: () {
+                                  // tap a move to speak it
+                                  tts.speak(moveText);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PGNViewPage(pgn: game.pgn()),
-                    ),
-                  );
-                },
-                child: const Text("View Game Replay"),
-              ),
-            ],
+            ),
           ),
         ],
       ),
