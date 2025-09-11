@@ -1,6 +1,6 @@
 name: cheese_for_everyone
 description: A chess app with AI, assistant, and local modes
-publish_to: 'none' # since this is a private project
+publish_to: 'none'
 
 version: 1.0.0+1
 
@@ -11,18 +11,18 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Chess packages
-  chess: ^0 8.1
+  # Chess logic and UI
+  chess: ^0.8.1
   flutter_chess_board: ^1.0.1
 
-  # Speech and TTS
+  # Speech recognition & TTS
   speech_to_text: ^7.3.0
   flutter_tts: ^3.5.2
 
-  # WebSocket
+  # WebSocket communication
   web_socket_channel: ^2.3.0
 
-  # UI / Material
+  # Icons & UI support
   cupertino_icons: ^1.0.5
 
 dev_dependencies:
